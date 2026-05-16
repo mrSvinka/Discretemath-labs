@@ -1,161 +1,207 @@
 import math
 import heapq
-from collections import Counter
 
-
-#ЗАДАЧА 1
+# ЗАДАНИЕ 1
 def solve_hamming_task():
     print("ЗАДАНИЕ 1")
     text = "Pentium "
-    binary_str = ''.join(format(ord(c), '08b') for c in text)
+    binary = ''.join(format(ord(c), '08b') for c in text)
 
-    def get_hamming_k(m):
+    def parity_bits_count(data_len):
         k = 0
-        while 2 ** k < m + k + 1: k += 1
+        while (1 << k) < data_len + k + 1:
+            k += 1
         return k
 
-    def encode(data):
-        m = len(data);
-        k = get_hamming_k(m);
+    def hamming_encode(data_bits):
+        m = len(data_bits)
+        k = parity_bits_count(m)
         n = m + k
-        res = [0] * n
+        code = [0] * n
         j = 0
         for i in range(1, n + 1):
-            if (i & (i - 1)) != 0:
-                res[i - 1] = int(data[j]);
+            if (i & (i - 1)) != 0:  # не степень двойки
+                code[i-1] = int(data_bits[j])
                 j += 1
+
         for i in range(k):
-            pos = 2 ** i
+            pos = 1 << i
             parity = 0
             for j in range(1, n + 1):
-                if j & pos: parity ^= res[j - 1]
-            res[pos - 1] = parity
-        return res
+                if j & pos:
+                    parity ^= code[j-1]
+            code[pos-1] = parity
+        return code
 
-    def fix_error(bits):
-        n = len(bits);
-        k = math.ceil(math.log2(n + 1))
+    def fix_error(code):
+        n = len(code)
+        k = math.ceil(math.log2(n+1))
         syndrome = 0
         for i in range(k):
-            pos = 2 ** i
+            pos = 1 << i
             parity = 0
-            for j in range(1, n + 1):
-                if j & pos: parity ^= bits[j - 1]
-            if parity: syndrome += pos
+            for j in range(1, n+1):
+                if j & pos:
+                    parity ^= code[j-1]
+            if parity:
+                syndrome += pos
         if syndrome:
-            bits[syndrome - 1] ^= 1
+            code[syndrome-1] ^= 1
             return syndrome
         return 0
 
-# Блоки по 32 бита
-    b1_raw = binary_str[:32]
-    b2_raw = binary_str[32:64]
+    #разбиваем на два блока по 32 бита
+    block1 = binary[:32]
+    block2 = binary[32:64]
 
-    b1 = encode(b1_raw)
-    b2 = encode(b2_raw)
+    print("Блок1 (исходные 32 бита):", block1)
+    encoded1 = hamming_encode(block1)
+    encoded1[4] ^= 1  #ошибка в 5-м бите
+    err = fix_error(encoded1)
+    print("Ошибка исправлена, позиция (1-нумерация):", err)
 
-# Имитация ошибок
-    print(f"Блок 1 (32 бита): {b1_raw}")
-    b1[4] ^= 1  # 5-й бит (индекс 4)
-    err1 = fix_error(b1)
-    print(f"Ошибка в Б1 найдена на позиции: {err1}")
-
-    print(f"Блок 2 (32 бита): {b2_raw}")
-    b2[20] ^= 1  # 21-й бит (индекс 20)
-    err2 = fix_error(b2)
-    print(f"Ошибка в Б2 найдена на позиции: {err2}\n")
+    print("Блок2 (исходные 32 бита):", block2)
+    encoded2 = hamming_encode(block2)
+    encoded2[20] ^= 1  #ошибка в 21-м бите
+    err = fix_error(encoded2)
+    print("Ошибка исправлена, позиция (1-нумерация):", err, "\n")
 
 
-#ЗАДАЧА 2
+# ЗАДАНИЕ 2
 def solve_distance_task():
     print("ЗАДАНИЕ 2")
-    codes_d2 = {c: format(i, '03b') + str(bin(i).count('1') % 2)
-                for i, c in enumerate("иклмнопр")}
-    print(f"Коды d>=2: {codes_d2}")
+    symbols = list("иклмнопр")
+    #коды с d >= 2
+    codes_d2 = {}
+    for i, ch in enumerate(symbols):
+        data = format(i, '03b')
+        parity = str(bin(i).count('1') % 2)
+        codes_d2[ch] = data + parity
+    print("Коды с d >= 2:", codes_d2)
+
+    #коды с d >= 3
+    def hamming74(i):
+        bits = [int(x) for x in format(i, '04b')]
+        p1 = bits[0] ^ bits[1] ^ bits[2]
+        p2 = bits[1] ^ bits[2] ^ bits[3]
+        p3 = bits[0] ^ bits[1] ^ bits[3]
+        return ''.join(map(str, bits + [p1, p2, p3]))
+
+    codes_d3 = {ch: hamming74(i) for i, ch in enumerate(symbols)}
+    print("Коды с d >= 3:", codes_d3, "\n")
 
 
-
-    def get_d3(i):  # Используем проверочную матрицу для генерации
-        d = [int(x) for x in format(i, '04b')]
-        p1 = d[0] ^ d[1] ^ d[2]
-        p2 = d[1] ^ d[2] ^ d[3]
-        p3 = d[0] ^ d[1] ^ d[3]
-        return "".join(map(str, d + [p1, p2, p3]))
-
-    codes_d3 = {c: get_d3(i) for i, c in enumerate("иклмнопр")}
-    print(f"Коды d>=3: {codes_d3}\n")
-
-
-#ЗАДАЧА 3
+# ЗАДАНИЕ 3
 def solve_rle_task():
     print("ЗАДАНИЕ 3")
     s = "aaaaaaaaaaaaaadghttttttttttyikloooooooop"
     orig_size = len(s)  # 40 байт
-    result = []
-    i = 0
-    while i < len(s):
-        run = 1
-        while i + run < len(s) and s[i + run] == s[i]: run += 1
-        if run > 1:
-            result.extend([run, s[i]])
-            i += run
-        else:
-            non_rep = []
-            while i < len(s) and (i + 1 == len(s) or s[i] != s[i + 1]):
-                non_rep.append(s[i])
-                i += 1
-            result.extend([0, len(non_rep)] + non_rep)
 
-    comp_size = len(result)
-    print(f"Сжатая строка: {result}")
-    print(f"Степень: {orig_size / comp_size:.2f}, Коэффициент: {comp_size / orig_size:.2f}\n")
+    def rle_compress(data):
+        res = []
+        i = 0
+        n = len(data)
+        while i < n: #ищем повторяющуюся серию (длина >= 2)
+            run_len = 1
+            while i + run_len < n and data[i + run_len] == data[i]:
+                run_len += 1
+            if run_len >= 2:
+                res.append(run_len)
+                res.append(data[i])
+                i += run_len
+            else: #собираем неповторяющийся блок
+                start = i
+                while i < n and (i == start or data[i] != data[i-1]):
+                    i += 1
+                block = data[start:i]
+                res.append(0)
+                res.append(len(block))
+                res.extend(block)
+        return res
+
+    compressed = rle_compress(s)
+    comp_size = len(compressed)  #каждый элемент - 1 байт
+
+    print("Сжатые данные (список байтов/символов):", compressed)
+    print("Исходный размер:", orig_size, "байт")
+    print("Сжатый размер:", comp_size, "байт")
+    stepen = orig_size / comp_size # степень сжатия
+    koef = comp_size / orig_size   # коэффициент сжатия
+    print(f"Степень сжатия: {stepen:.2f}")
+    print(f"Коэффициент сжатия: {koef:.2f}\n")
 
 
-#ЗАДАЧА 4
+# ЗАДАНИЕ 4
 def solve_huffman_task():
     print("ЗАДАНИЕ 4")
     freqs = {'A': 2, 'B': 2, 'C': 8, 'D': 11, 'E': 19, 'F': 23, 'G': 35}
-    heap = [[f, [s, ""]] for s, f in freqs.items()]
+    # построение дерева Хаффмана
+    heap = [[freq, [sym, ""]] for sym, freq in freqs.items()]
     heapq.heapify(heap)
     while len(heap) > 1:
         lo = heapq.heappop(heap)
         hi = heapq.heappop(heap)
-        for p in lo[1:]: p[1] = '0' + p[1]
-        for p in hi[1:]: p[1] = '1' + p[1]
+        for pair in lo[1:]:
+            pair[1] = '0' + pair[1]
+        for pair in hi[1:]:
+            pair[1] = '1' + pair[1]
         heapq.heappush(heap, [lo[0] + hi[0]] + lo[1:] + hi[1:])
+    codes = dict(heap[0][1:])
+    print("Коды Хаффмана:", codes)
 
-    codes = dict(heapq.heappop(heap)[1:])
-    print(f"Коды: {codes}")
+    total = sum(freqs.values())  #100
+    avg_len = sum(freqs[s] * len(codes[s]) for s in freqs) / total
+    uniform_len = 3  #7 символов -> 3 бита
+    print(f"Средняя длина Хаффмана: {avg_len:.2f} бит/символ")
+    print(f"Равномерный код: {uniform_len} бит/символ")
+    stepen = uniform_len / avg_len  #во сколько раз лучше равномерного
+    koef = avg_len / uniform_len  #доля от равномерного
+    print(f"Степень сжатия (относительно равномерного): {stepen:.2f}")
+    print(f"Коэффициент сжатия: {koef:.2f}\n")
 
-    avg_len = sum(freqs[s] * len(codes[s]) for s in freqs) / 100
-    # Сравнение с равномерным (3 бита на символ для 7 знаков)
-    print(f"Степень: {3 / avg_len:.2f}, Коэффициент: {avg_len / 3:.2f}\n")
 
-
-#ЗАДАЧА 5
+# ЗАДАНИЕ 5
 def solve_arithmetic_task():
     print("ЗАДАНИЕ 5")
     probs = {'a': 0.1, 'b': 0.1, 'c': 0.05, 'd': 0.55, 'e': 0.1, 'f': 0.1}
     string = "aecdfb"
 
+    #границы символов
     low, high = 0.0, 1.0
     ranges = {}
-    curr = 0.0
-    for s, p in probs.items():
-        ranges[s] = (curr, curr + p)
-        curr += p
+    cur = 0.0
+    for ch, p in probs.items():
+        ranges[ch] = (cur, cur + p)
+        cur += p
 
-    for char in string:
+    #кодирование
+    for ch in string:
         w = high - low
-        l_rel, h_rel = ranges[char]
-        high = low + w * h_rel
-        low = low + w * l_rel
+        l, h = ranges[ch]
+        high = low + w * h
+        low = low + w * l
 
-    print(f"Интервал: [{low:.10f}, {high:.10f})")
+    # число бит = ceil(-log2(длина интервала))
     bits = math.ceil(-math.log2(high - low))
-    print(f"Биты: {bits}")
-    print(f"Степень (отн. 18 бит): {18 / bits:.2f}\n")
+    # середина интервала -> двоичная дробь
+    mid = (low + high) / 2
+    binary = ""
+    for _ in range(bits):
+        mid *= 2
+        if mid >= 1:
+            binary += "1"
+            mid -= 1
+        else:
+            binary += "0"
 
+    print("Интервал: [{:.10f}, {:.10f})".format(low, high))
+    print("Двоичный код:", binary, "(длина", bits, "бит)")
+    uniform_bits = len(string) * 3  # 6*3=18 бит (3 бита на символ для 6 букв)
+    stepen = uniform_bits / bits
+    koef = bits / uniform_bits
+    print("Равномерный код потребовал бы:", uniform_bits, "бит")
+    print(f"Степень сжатия (во сколько раз меньше): {stepen:.2f}")
+    print(f"Коэффициент сжатия (доля от равномерного): {koef:.2f}\n")
 
 
 if __name__ == "__main__":

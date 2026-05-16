@@ -1,208 +1,144 @@
-import networkx as nx
-import matplotlib.pyplot as plt
-import random
-from collections import deque
+import collections
+import heapq
+import math
+import os
 
-# Алгоритм Форда–Фалкерсона
-def ford_fulkerson_max_flow(nodes, edges, source='S', sink='T', verbose=True):
-    idx = {name: i for i, name in enumerate(nodes)}     # Индексация вершин
-    n = len(nodes)
-
-    # Матрица пропускных способностей
-    cap = [[0]*n for _ in range(n)]
-    for u, v, c in edges:
-        cap[idx[u]][idx[v]] = c
-
-    # Матрица потока (все нули изначально)
-    flow = [[0]*n for _ in range(n)]
-
-    max_flow = 0
-    steps = []  #в виде индексов, добавленный поток
-
-    
-    while True: # Основной цикл: пока есть дополняющий путь
-        # Поиск в ширину кратчайшего пути в остаточной сети
-        parent = [-1]*n
-        parent[idx[source]] = idx[source]
-        q = deque([idx[source]])
-        while q:
-            u = q.popleft()
-            for v in range(n):
-                if parent[v] == -1 and cap[u][v] - flow[u][v] > 0:
-                    parent[v] = u
-                    q.append(v)
-                    if v == idx[sink]:
-                        break
-            else:
-                continue
-            break
-
-        
-        if parent[idx[sink]] == -1: # Если сток не достигнут – выход
-            break
-
-        # Восстанавлениеходии и находение
-        path = []
-        v = idx[sink]
-        bottleneck = float('inf')
-        while v != idx[source]:
-            u = parent[v]
-            path.append(v)
-            bottleneck = min(bottleneck, cap[u][v] - flow[u][v])
-            v = u
-        path.append(idx[source])
-        path.reverse()
-
-        # Обновляем потоки вдоль пути
-        v = idx[sink]
-        while v != idx[source]:
-            u = parent[v]
-            flow[u][v] += bottleneck
-            flow[v][u] -= bottleneck  # обратные рёбра
-            v = u
-
-        max_flow += bottleneck
-        steps.append((path, bottleneck))
-
-        if verbose:
-            path_names = [nodes[i] for i in path]ч
-            print(f"   Дополняющий путь: {' → '.join(path_names)}, величина: {bottleneck}")
+# 1. Чтение текста
+def read_text(filename):
+    with open(filename, 'r', encoding='utf-8') as f:
+        return f.read()
 
 
+# 2. Таблица частот символов и биграмм
+def print_frequencies(text):
+    total = len(text)
+    freq = collections.Counter(text)
+    print("\nЧастоты символов")
+    print(f"{'Символ':<10} {'Кол-во':<10} {'Частота, %':<10}")
+    for ch, cnt in sorted(freq.items(), key=lambda x: -x[1]):
+        pct = 100 * cnt / total
+        disp = repr(ch)[1:-1] if ch in '\n\r\t' else ch
+        print(f"{disp:<10} {cnt:<10} {pct:<10.2f}")
 
-    
-    #Минимальный разрез
-    # Вершины достижимые из истока в остаточной сети
-    visited = [False]*n
-    q = deque([idx[source]])
-    visited[idx[source]] = True
-    while q:
-        u = q.popleft()
-        for v in range(n):
-            if not visited[v] and cap[u][v] - flow[u][v] > 0:
-                visited[v] = True
-                q.append(v)
-
-    # Формируем рёбра разреза
-    cut_edges = []
-    for u in range(n):
-        for v in range(n):
-            if visited[u] and not visited[v] and cap[u][v] > 0:
-                cut_edges.append((u, v))
-
-    return max_flow, flow, steps, cut_edges, visited
+    bigrams = [text[i:i+2] for i in range(len(text)-1)]
+    bigram_freq = collections.Counter(bigrams)
+    print("\nЧастоты биграмм (первые 20)")
+    print(f"{'Биграмма':<10} {'Кол-во':<10} {'Частота, %':<10}")
+    for bg, cnt in sorted(bigram_freq.items(), key=lambda x: -x[1])[:20]:
+        pct = 100 * cnt / (total - 1)
+        print(f"{repr(bg)[1:-1]:<10} {cnt:<10} {pct:<10.2f}")
 
 
-#Визуализация
-def draw_network(nodes, edges, flow, cut_edges, visited, title=""):
-    idx = {name: i for i, name in enumerate(nodes)}
-    G = nx.DiGraph()
-    G.add_nodes_from(nodes)
+# 3. Энтропия и количество информации
+def entropy_and_info(text):
+    freq = collections.Counter(text)
+    n = len(text)
+    ent = 0.0
+    for cnt in freq.values():
+        p = cnt / n
+        if p > 0:
+            ent -= p * math.log2(p)
+    return ent, ent * n
 
-    for u, v, cap in edges:
-        f = flow[idx[u]][idx[v]]
-        label = f"{f}/{cap}"
-        G.add_edge(u, v, capacity=cap, flow=f, label=label)
 
-    # Позиции вершин 
-    pos = {
-        'S': (-2, 1),
-        'p': (-1, 2),
-        'a': (-1, 0.5),
-        'd': (0, 1.5),
-        'k': (1, 2),
-        'c': (1, 0.5),
-        'b': (2, -0.5),
-        'T': (3, 1)
-    }
+# 4. Кодирование Хаффмана
+def huffman_encode(text):
+    freq = collections.Counter(text)
+    heap = [[cnt, [ch, ""]] for ch, cnt in freq.items()]
+    heapq.heapify(heap)
+    while len(heap) > 1:
+        lo = heapq.heappop(heap)
+        hi = heapq.heappop(heap)
+        for pair in lo[1:]:
+            pair[1] = '0' + pair[1]
+        for pair in hi[1:]:
+            pair[1] = '1' + pair[1]
+        heapq.heappush(heap, [lo[0] + hi[0]] + lo[1:] + hi[1:])
+    codes = dict(heap[0][1:])
+    encoded = ''.join(codes[ch] for ch in text)
+    return encoded, len(encoded)
 
-    plt.figure(figsize=(11, 6))
-    # Цвета узлов по принадлежности к S- или T-доле
-    node_colors = ['#90EE90' if visited[idx[n]] else '#FFB6C1' for n in G.nodes()]
-    nx.draw_networkx_nodes(G, pos, node_color=node_colors, node_size=900)
-    nx.draw_networkx_labels(G, pos, font_size=11)
 
-    #обычные и разрезанные ребра
-    cut_set = set()
-    for u, v in cut_edges:
-        if (nodes[u], nodes[v]) in G.edges():
-            cut_set.add((nodes[u], nodes[v]))
+# 5. Кодирование LZW
+def lzw_encode(text, max_dict_size=4096, code_bits=12):
+    # Переводим текст в байты (UTF-8)
+    data = text.encode('utf-8')
+    # Начальный словарь: байт -> код (0..255)
+    dictionary = {bytes([i]): i for i in range(256)}
+    next_code = 256
+    codes = []
+    if not data:
+        return "", 0
 
-    edge_colors = []
-    edge_widths = []
-    for u, v in G.edges():
-        if (u, v) in cut_set:
-            edge_colors.append('red')
-            edge_widths.append(2.5)
+    current = bytes([data[0]])
+    for b in data[1:]:
+        nxt = current + bytes([b])
+        if nxt in dictionary:
+            current = nxt
         else:
-            edge_colors.append('gray')
-            edge_widths.append(1.2)
+            codes.append(dictionary[current])
+            if next_code < max_dict_size:
+                dictionary[nxt] = next_code
+                next_code += 1
+            current = bytes([b])
+    codes.append(dictionary[current])
 
-    nx.draw_networkx_edges(G, pos, edge_color=edge_colors, width=edge_widths,
-                           arrowstyle='->', arrowsize=18)
-
-    edge_labels = {(u, v): d['label'] for u, v, d in G.edges(data=True)}
-    nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=9)
-
-    plt.title(title, fontsize=14)
-    plt.axis('off')
-    plt.tight_layout()
-    plt.show()
+    total_bits = len(codes) * code_bits
+    bit_string = ''.join(format(c, '0{}b'.format(code_bits)) for c in codes)
+    return bit_string, total_bits
 
 
-#  Функция полного эксперимента
-def run_experiment(nodes, edges, title="Сеть"):
-    print(f"\n==== {title} ====")
-    max_flow, flow, steps, cut_edges, visited = ford_fulkerson_max_flow(
-        nodes, edges, verbose=True
-    )
-
-    print(f"\nМаксимальный поток: {max_flow}")
-
-    idx = {name: i for i, name in enumerate(nodes)}
-    # S-доля и T-доля
-    s_part = [nodes[i] for i, v in enumerate(visited) if v]
-    t_part = [nodes[i] for i, v in enumerate(visited) if not v]
-    print(f"S-доля разреза: {s_part}")
-    print(f"T-доля разреза: {t_part}")
-    print("Рёбра минимального разреза:")
-    cut_sum = 0
-    for u, v in cut_edges:
-        cap = 0
-        for e in edges:
-            if e[0] == nodes[u] and e[1] == nodes[v]:
-                cap = e[2]
-                break
-        print(f"  {nodes[u]} -> {nodes[v]}  (пропускная способность = {cap})")
-        cut_sum += cap
-    print(f"Пропускная способность разреза: {cut_sum}  (совпадает с потоком: {cut_sum == max_flow})")
-
-    draw_network(nodes, edges, flow, cut_edges, visited,
-                 title=f"{title}\nМаксимальный поток = {max_flow}")
+# 6. Сохранение битовой строки в файл (первые N символов)
+def save_bits(filename, bits, max_len=5000):
+    content = bits[:max_len] + (f"\n... и ещё {len(bits)-max_len} бит" if len(bits) > max_len else "")
+    with open(filename, 'w', encoding='utf-8') as f:
+        f.write(content)
+    print(f"Сохранено в {filename} (показано {min(len(bits), max_len)} бит)")
 
 
-#главная часть
+# 7. Главная функция
+def main():
+    if not os.path.exists("text.txt"):
+        print("Файл text.txt не найден")
+        return
+
+    text = read_text("text.txt")
+    print(f"Загружено символов: {len(text)}")
+
+    # Таблицы частот
+    print_frequencies(text)
+
+    # Энтропия и информация
+    entropy, info = entropy_and_info(text)
+    print(f"\nЭнтропия: {entropy:.4f} бит/символ")
+    print(f"Количество информации: {info:.2f} бит")
+
+    # Равномерное кодирование (8 бит/символ)
+    uniform_bits = len(text) * 8
+    print(f"Исходный размер (равномерное 8 бит): {uniform_bits} бит")
+
+    # Хаффман
+    huff_bits_str, huff_bits = huffman_encode(text)
+    save_bits("encoded_huffman.txt", huff_bits_str)
+    ratio_h = huff_bits / uniform_bits
+    print(f"\nХаффман: размер = {huff_bits} бит, коэффициент сжатия = {ratio_h:.4f}")
+
+    # LZW
+    lzw_bits_str, lzw_bits = lzw_encode(text)
+    save_bits("encoded_lzw.txt", lzw_bits_str)
+    ratio_l = lzw_bits / uniform_bits
+    print(f"LZW: размер = {lzw_bits} бит, коэффициент сжатия = {ratio_l:.4f}")
+
+    # Итоговое сравнение
+    print("\nСравнение")
+    print(f"Хаффман экономит {100*(1-ratio_h):.2f}%")
+    print(f"LZW экономит {100*(1-ratio_l):.2f}%")
+    if huff_bits < lzw_bits:
+        print("Вывод: Хаффман эффективнее LZW для данного текста.")
+    elif huff_bits > lzw_bits:
+        print("Вывод: LZW эффективнее Хаффмана для данного текста.")
+    else:
+        print("Вывод: эффективность одинакова.")
+
 if __name__ == "__main__":
-    # Узлы сети
-    nodes = ['S', 'p', 'd', 'a', 'k', 'c', 'b', 'T']
-
-    # Дуги и их пропускные способности
-    original_edges = [
-        ('S', 'p', 12), ('S', 'd', 61), ('S', 'a', 31),
-        ('p', 'k', 21), ('p', 'b', 6),
-        ('a', 'd', 12), ('a', 'k', 11), ('a', 'b', 6),
-        ('d', 'k', 12), ('d', 'c', 7),
-        ('k', 'T', 13),
-        ('c', 'T', 71), ('c', 'b', 11),
-        ('b', 'T', 51)
-    ]
-
- 
-
-    # Часть 1: исходная сеть
-    run_experiment(nodes, original_edges, title="Исходная сеть")
-
-    # Часть 2: случайная сеть
-    random.seed(12345)
-    random_edges = [(u, v, random.randint(100, 1000)) for u, v, _ in original_edges]
-    run_experiment(nodes, random_edges, title="Сеть со случайными пропускными способностями [100, 1000]")
+    main()
