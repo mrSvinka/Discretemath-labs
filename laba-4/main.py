@@ -2,14 +2,15 @@ import collections
 import heapq
 import math
 import os
+import re
 
-# 1. Чтение текста
+#0 Чтение текста
 def read_text(filename):
     with open(filename, 'r', encoding='utf-8') as f:
         return f.read()
 
 
-# 2. Таблица частот символов и биграмм
+#1 Таблица частот символов и пар
 def print_frequencies(text):
     total = len(text)
     freq = collections.Counter(text)
@@ -22,14 +23,14 @@ def print_frequencies(text):
 
     bigrams = [text[i:i+2] for i in range(len(text)-1)]
     bigram_freq = collections.Counter(bigrams)
-    print("\nЧастоты биграмм (первые 20)")
-    print(f"{'Биграмма':<10} {'Кол-во':<10} {'Частота, %':<10}")
+    print("\nЧастоты пар (первые 20)")
+    print(f"{'Пары':<10} {'Кол-во':<10} {'Частота, %':<10}")
     for bg, cnt in sorted(bigram_freq.items(), key=lambda x: -x[1])[:20]:
         pct = 100 * cnt / (total - 1)
         print(f"{repr(bg)[1:-1]:<10} {cnt:<10} {pct:<10.2f}")
 
 
-# 3. Энтропия и количество информации
+#Энтропия и количество информации
 def entropy_and_info(text):
     freq = collections.Counter(text)
     n = len(text)
@@ -41,7 +42,7 @@ def entropy_and_info(text):
     return ent, ent * n
 
 
-# 4. Кодирование Хаффмана
+#2 Кодирование Хаффмана
 def huffman_encode(text):
     freq = collections.Counter(text)
     heap = [[cnt, [ch, ""]] for ch, cnt in freq.items()]
@@ -59,7 +60,7 @@ def huffman_encode(text):
     return encoded, len(encoded)
 
 
-# 5. Кодирование LZW
+#3 Кодирование LZW
 def lzw_encode(text, max_dict_size=4096, code_bits=12):
     # Переводим текст в байты (UTF-8)
     data = text.encode('utf-8')
@@ -88,15 +89,24 @@ def lzw_encode(text, max_dict_size=4096, code_bits=12):
     return bit_string, total_bits
 
 
-# 6. Сохранение битовой строки в файл (первые N символов)
-def save_bits(filename, bits, max_len=5000):
-    content = bits[:max_len] + (f"\n... и ещё {len(bits)-max_len} бит" if len(bits) > max_len else "")
+#Сохранение битовой строки в файл
+def save_bits(filename, bits):
     with open(filename, 'w', encoding='utf-8') as f:
-        f.write(content)
-    print(f"Сохранено в {filename} (показано {min(len(bits), max_len)} бит)")
+        f.write(bits)
+    print(f"Сохранено в {filename}")
 
 
-# 7. Главная функция
+def filter_text(text, to_lower=False):
+    allowed = r"[A-Za-z0-9 .,!?;:()'\"-]"
+    filtered = ''.join(re.findall(allowed, text))
+    if to_lower:
+        filtered = filtered.lower()
+    return filtered
+
+
+
+
+
 def main():
     if not os.path.exists("text.txt"):
         print("Файл text.txt не найден")
@@ -105,38 +115,48 @@ def main():
     text = read_text("text.txt")
     print(f"Загружено символов: {len(text)}")
 
-    # Таблицы частот
+    unique_chars = set(text)
+    unique_count = len(unique_chars)
+    print(f"Количество уникальных символов: {unique_count}")
+
+    if unique_count > 64:
+        print(f"\nКоличество уникальных символов ({unique_count}) > 64.")
+        print("Выполняется фильтрация.")
+        text = filter_text(text, to_lower=True)
+        unique_count = len(set(text))
+        print(f"После фильтрации: ({unique_count}) уникальных символов ")
+        if unique_count > 64:
+            print("Ошибка")
+            return
+
     print_frequencies(text)
 
-    # Энтропия и информация
     entropy, info = entropy_and_info(text)
     print(f"\nЭнтропия: {entropy:.4f} бит/символ")
     print(f"Количество информации: {info:.2f} бит")
 
-    # Равномерное кодирование (8 бит/символ)
-    uniform_bits = len(text) * 8
-    print(f"Исходный размер (равномерное 8 бит): {uniform_bits} бит")
+    uniform_bits = len(text) * 6
+    print(f"Исходный размер (равномерное 6 бит): {uniform_bits} бит")
 
-    # Хаффман
     huff_bits_str, huff_bits = huffman_encode(text)
     save_bits("encoded_huffman.txt", huff_bits_str)
-    ratio_h = huff_bits / uniform_bits
-    print(f"\nХаффман: размер = {huff_bits} бит, коэффициент сжатия = {ratio_h:.4f}")
+    ratio_huff = uniform_bits / huff_bits
+    print(f"Хаффман: размер = {huff_bits} бит, коэффициент сжатия = {ratio_huff:.4f}")
 
-    # LZW
     lzw_bits_str, lzw_bits = lzw_encode(text)
     save_bits("encoded_lzw.txt", lzw_bits_str)
-    ratio_l = lzw_bits / uniform_bits
-    print(f"LZW: размер = {lzw_bits} бит, коэффициент сжатия = {ratio_l:.4f}")
+    ratio_lzw = uniform_bits / lzw_bits
+    print(f"LZW: размер = {lzw_bits} бит, коэффициент сжатия = {ratio_lzw:.4f}")
 
-    # Итоговое сравнение
     print("\nСравнение")
+    ratio_h = huff_bits / uniform_bits
     print(f"Хаффман экономит {100*(1-ratio_h):.2f}%")
+    ratio_l = lzw_bits / uniform_bits
     print(f"LZW экономит {100*(1-ratio_l):.2f}%")
     if huff_bits < lzw_bits:
-        print("Вывод: Хаффман эффективнее LZW для данного текста.")
+        print("Вывод: Хаффман эффективнее.")
     elif huff_bits > lzw_bits:
-        print("Вывод: LZW эффективнее Хаффмана для данного текста.")
+        print("Вывод: LZW эффективнее.")
     else:
         print("Вывод: эффективность одинакова.")
 
