@@ -7,7 +7,7 @@ edges = [(3,8), (4,7), (4,8), (4,11), (4,14), (5,7), (5,8), (6,7), (6,8),
          (6,14), (6,15), (7,9), (7,10), (7,13), (7,16), (7,17), (8,12),
          (9,15), (11,13), (11,17), (12,14), (12,15), (14,17), (15,16)]
 
-# 1. Проверка двудольности и получение долей
+# 1 Проверка двудольности и получение долей
 def bipartite_sets(edges):
     adj = {}
     for u, v in edges:
@@ -37,9 +37,9 @@ if left:
     print("Доля A:", sorted(left))
     print("Доля B:", sorted(right))
 else:
-    print("Граф не двудольный. Удаление рёбер не требуется (по факту граф двудольный).")
+    print("Граф не двудольный.")
 
-# 2. Алгоритм Форда‑Фалкерсона (через потоковую сеть)
+# 2 Алгоритм Форда‑Фалкерсона
 def max_matching_ff(edges, left, right):
     L, R = len(left), len(right)
     id = {v: i for i, v in enumerate(left)}
@@ -89,7 +89,7 @@ def max_matching_ff(edges, left, right):
                 matching.append((u, v))
     return matching
 
-# 3. Алгоритм Куна (увеличивающие цепи)
+# 3 Алгоритм Куна
 def max_matching_kuhn(edges, left, right):
     adj = {u: [] for u in left}
     for u, v in edges:
@@ -118,7 +118,7 @@ if left:
     print("Паросочетание (Кун):", sorted(match_kuhn))
     print("Размер:", len(match_ff))
 
-# 4. Визуализация (с сохранением рисунка)
+#Визуализация
 if left:
     G = nx.Graph()
     G.add_edges_from(edges)
